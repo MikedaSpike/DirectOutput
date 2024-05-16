@@ -50,6 +50,8 @@ namespace PinballX
         {
             switch (State)
             {
+                case 6:
+                    return "PBXWheelStart";
                 case 10:
                     return "PBXWheel";
                 case 20:
@@ -146,10 +148,10 @@ namespace PinballX
 
             //AllTableMappings.Add(new Mapping() { TableName = "xxx", RomName = "yyy" });
             //AllTableMappings.Add(new Mapping() { TableName = "aaa", RomName = "bbb" });
-            
+
             //AllTableMappings.SaveTableMappings(".\\mappings.xml");
 
-               string TableMappingFileName = DM.GetTableMappingFilename();
+            string TableMappingFileName = DM.GetTableMappingFilename();
             Log("Table mapping filename: " + TableMappingFileName);
             if (!string.IsNullOrEmpty(TableMappingFileName))
             {
@@ -158,7 +160,7 @@ namespace PinballX
 
             Log(AllTableMappings.ToString() + " TableMappings loaded");
 
-            string[] L=DM.GetConfiguredTableElmentDescriptors();
+            string[] L = DM.GetConfiguredTableElmentDescriptors();
             foreach (string R in L)
             {
                 if (R.StartsWith("$"))
@@ -178,13 +180,13 @@ namespace PinballX
                 //return;
             }
             Log("Table/RomName mapping loaded");
-           
-
-  
 
 
 
-           
+
+
+
+
 
         }
 
@@ -192,23 +194,84 @@ namespace PinballX
 
         Dictionary<string, string> RomLookupCache = new Dictionary<string, string>();
 
-        private string GetRom(string GameDecriptionShort)
+        private string GetRom(string GameDecriptionShort, string PBXROM)
         {
             string GameDesc = CleanGameDescription(GameDecriptionShort.ToUpper());
-
-
-            if (TableRomNames.Contains(GameDecriptionShort)) return GameDesc;
-
-
-            if (RomLookupCache.ContainsKey(GameDesc)) return RomLookupCache[GameDesc];
 
 
             Mapping MatchMapping = null;
             double MatchValue = 0;
 
+            if (RomLookupCache.ContainsKey(GameDesc + PBXROM)) return RomLookupCache[GameDesc + PBXROM];
+            if (TableRomNames.Contains(GameDecriptionShort)) return GameDesc;
+            if (TableRomNames.Contains(PBXROM)) return PBXROM;
+
+
+            // Matching on RomName
+
+            if (PBXROM.Length > 1)
+            {
+                string UseTableRom = null;
+
+                MatchMapping = null;
+                MatchValue = 0;
+
+                foreach (Mapping Mapping in AllTableMappings)
+                {
+                    Tuple<string, double> M = FuzzyStrings.LongestCommonSubsequenceExtensions.LongestCommonSubsequence(Mapping.RomName.ToUpper(), PBXROM);
+
+
+                    if (M.Item2 > MatchValue)
+                    {
+
+                        MatchValue = M.Item2;
+                        MatchMapping = Mapping;
+                    }
+                }
+
+                if (MatchMapping != null)
+                {
+                    if (MatchValue > 0.35 && MatchMapping != null)
+                        Log("Best match for ROM " + PBXROM + " is " + MatchMapping.TableName.ToUpper() + " (" + MatchMapping.RomName + "). Match Value: " + MatchValue.ToString());
+
+                    string Rom = MatchMapping.RomName;
+
+                    foreach (string TableRomName in TableRomNames)
+                    {
+                        if (TableRomName.Equals(Rom, StringComparison.InvariantCultureIgnoreCase))
+                        {
+                            UseTableRom = TableRomName;
+                            break;
+                        };
+                    };
+
+
+                    if (!RomLookupCache.ContainsKey(GameDesc + PBXROM))
+                    {
+                        RomLookupCache.Add(GameDesc + PBXROM, UseTableRom);
+                    }
+
+
+                    if (UseTableRom != null)
+                    {
+                        return UseTableRom;
+
+                    }
+                    else
+                    {
+                        Log("Probably not 'PF Back PBX MX' set up (properly) for rom " + PBXROM.ToUpper());
+                    }
+                }
+
+            }
+
+            // Matching on Gamedescription
+
             foreach (Mapping Mapping in AllTableMappings)
             {
                 double M = FuzzyStrings.FuzzyText.DiceCoefficient(Mapping.TableName.ToUpper(), GameDesc);
+
+
 
                 if (M > MatchValue)
                 {
@@ -217,10 +280,11 @@ namespace PinballX
                 }
             }
 
-            if(MatchMapping!=null) {
+            if (MatchMapping != null)
+            {
                 Log("Best match for " + GameDesc + " is " + MatchMapping.TableName.ToUpper() + " (" + MatchMapping.RomName + "). Match Value: " + MatchValue.ToString());
             }
-            if (MatchValue > 0.55 && MatchMapping!=null)
+            if (MatchValue > 0.35 && MatchMapping != null)
             {
                 string Rom = MatchMapping.RomName;
 
@@ -229,7 +293,7 @@ namespace PinballX
 
                 foreach (string TableRomName in TableRomNames)
                 {
-                    if (TableRomName.Equals(Rom,StringComparison.InvariantCultureIgnoreCase))
+                    if (TableRomName.Equals(Rom, StringComparison.InvariantCultureIgnoreCase))
                     {
                         UseTableRom = TableRomName;
                         break;
@@ -238,21 +302,29 @@ namespace PinballX
 
 
 
-                if (!RomLookupCache.ContainsKey(GameDesc))
+                if (!RomLookupCache.ContainsKey(GameDesc + PBXROM))
                 {
-                    RomLookupCache.Add(GameDesc, UseTableRom);
+                    RomLookupCache.Add(GameDesc + PBXROM, UseTableRom);
                 }
 
                 if (UseTableRom != null)
                 {
-
                     return UseTableRom;
+
+                }
+                else
+                {
+                    Log("Probably not 'PF Back PBX MX' set up (properly) for " + MatchMapping.TableName.ToUpper());
                 }
             }
-
+            else
+            {
+                Log("Matchvalue to low ");
+            }
 
             return null;
         }
+
 
         private string CleanGameDescription(string GameName)
         {
@@ -320,7 +392,7 @@ namespace PinballX
             try
             {
                 LoadConfig();
-                
+
                 Config.EnableLogging = true;
 
                 Log("Initializing plugin");
@@ -337,10 +409,12 @@ namespace PinballX
                 SetupRomNameLinks();
 
                 Log("Sending initial PBX state to DOF");
-                UpdatePBXState(10);
+
 
                 DM.UpdateNamedTableElement("PBXScreenSaver", 0);
+                UpdatePBXState(10);
                 Log("Init complete");
+
             }
             catch (Exception E)
             {
@@ -389,6 +463,7 @@ namespace PinballX
         {
             try
             {
+
                 if (!string.IsNullOrEmpty(LastGameSelect))
                 {
                     DM.UpdateNamedTableElement(LastGameSelect, 0);
@@ -426,13 +501,19 @@ namespace PinballX
                 {
                     DM.UpdateNamedTableElement(LastGameSelect, 0);
                 }
-                SendAction("PBXGameSelect");
-                LastGameSelect = GetRom(Info.GameShortDescription);
-                if (!string.IsNullOrEmpty(LastGameSelect))
-                {
-                    DM.UpdateNamedTableElement(LastGameSelect, 1);
-                }
 
+                SendAction("PBXGameSelect");
+                LastGameSelect = GetRom(Info.GameShortDescription, Info.PinMAMEROM);
+                //if (!string.IsNullOrEmpty(LastGameSelect))
+                if (string.IsNullOrEmpty(LastGameSelect))
+                {
+                    LastGameSelect = "PinballXMX";
+                }
+                //else
+                //{
+                //   DM.UpdateNamedTableElement("PinballXMX", 1);
+                //}
+                DM.UpdateNamedTableElement(LastGameSelect, 1);
                 Log("Game selected " + Info.GameShortDescription + " (" + (string.IsNullOrEmpty(LastGameSelect) ? "No update sent" : "Update sent for " + LastGameSelect) + ")");
             }
             catch (Exception E)
@@ -523,7 +604,7 @@ namespace PinballX
         /// <returns></returns>
         public bool Event_Input(bool[] Input_Keys, bool[] Input_Buttons, int PinballXStatus)
         {
-            Log("Event_Input");
+            ///Log("Event_Input");
             try
             {
 
@@ -539,6 +620,8 @@ namespace PinballX
 
                     switch (PinballXStatus)
                     {
+
+                        case 6:
                         case 10:
                             //Wheel mode
                             switch (InputAction)
