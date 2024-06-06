@@ -7,6 +7,9 @@ DirectOutput framework R3 for virtual pinball cabinets
 DirectOutput is a framework to control the toys which are installed in a virtual pinball cabinet.
 
 Please read the documentation at http://directoutput.github.io/DirectOutput/
+-----------------------------------------------------------------------------
+
+this is a FORK from the official DOF, but only has modification for the PinbalLX plugin !
 
 The credits for this plug-in goes completely to Swisslizard.
 This is a slightly modified version, that will give more hits on tables for the led matrix .
